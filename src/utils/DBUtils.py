@@ -5,7 +5,7 @@ from dbutils.pooled_db import *
 from multiprocessing import cpu_count
 
 
-def mysql_connection() -> PooledDB:
+def mysql_connection_pool() -> PooledDB:
     max_connections = multiprocessing.cpu_count() * 2 + 1  # 最大连接数
     connection_pool = PooledDB(
         pymysql,
@@ -19,7 +19,7 @@ def mysql_connection() -> PooledDB:
     return connection_pool
 
 
-PooledDB = mysql_connection()
+PooledDB = mysql_connection_pool()
 
 
 
