@@ -55,8 +55,12 @@ def ma_strategy(data, short_window=5, long_window=20):
 
 
 if __name__ == '__main__':
+
     # 股票列表
-    stocks = ['000001.XSHE', '000858.XSHE', '002594.XSHE']
+    stocks = ['300750.xshe',
+              '600036.xshg', '000858.xshe',
+               '000333.xshe',
+              '300059.xshe']
 
     # 存放累计收益率
     cum_profits = pd.DataFrame()
