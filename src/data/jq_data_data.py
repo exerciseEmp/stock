@@ -1,16 +1,14 @@
 """
 聚宽数据
+Runs very slowly
+because single thread and sql
 """
-import datetime
 import math
-from datetime import time
 import configparser
 
 import pandas
 import timestamp as timestamp
 from jqdatasdk import *
-from pymysql import Timestamp
-from sqlalchemy import *
 
 from src.utils.DBUtils import *
 
@@ -123,7 +121,8 @@ def save_stock_k(code_str: str):
         connection.commit()
         cursor.close()
         connection.close()
-        print("%s日k线图新增输数据%s:" % (code_str, insert_i))
+        if insert_i > 0:
+            print("%s日k线图新增输数据%s:" % (code_str, insert_i))
         pass
 
 
@@ -176,12 +175,26 @@ def update_and_insert_data():
     pass
 
 
-# 必须登录
-cf = configparser.ConfigParser()
-cf.read("../../config/config.properties", encoding='UTF-8')
-auth(cf.get("config", "username"), cf.get("config", "password"))
-print("login success")
-# 更新股票基础数据
-# update_and_insert_data()
-# 保存K线数据
-save_stock_k_all()
+def __main__():
+    i = 0
+    while i < 13:
+        cf = configparser.ConfigParser()
+        cf.read("../../config/config.properties", encoding='UTF-8')
+        try:
+            # 必须登录
+            auth(cf.get("config%s" % i, "username%s" % i), cf.get("config%s" % i, "password%s" % i))
+            print("login success")
+            # 更新股票基础数据
+            update_and_insert_data()
+            # 保存K线数据
+            save_stock_k_all()
+            return
+        except Exception:
+            pass
+        finally:
+            i += 1
+            pass
+
+
+if __name__ == '__main__':
+    __main__()
