@@ -6,6 +6,7 @@
 '''
 import datetime
 import multiprocessing
+import os
 
 import dbutils.pooled_db
 from sqlalchemy import create_engine
@@ -18,6 +19,11 @@ import matplotlib.pyplot as plt
 from dateutil.relativedelta import relativedelta
 import data.jq_data_data as jd_data
 import threading
+
+path: str = "../../img/"
+mean_all_file_name: str = "均线策略所有数据_data.xlsx"
+mean_year_file_name: str = "calculate_"
+years = [3, 5, 7, 10, 15]
 
 
 def ma_strategy(data, short_window=5, long_window=20):
@@ -193,6 +199,65 @@ def hu_shen_300(stock_range: ()):
         writer.close()
 
 
+def save_mean_all_data():
+    files = os.listdir(path)
+    stock_year_mean_data = pd.DataFrame()
+    for file in files:
+        if file.endswith(".xlsx") & (not (file.startswith("~"))):
+            # print(file)
+            stock_year_mean_data = pd.concat(
+                [stock_year_mean_data, pd.read_excel(path + file, index_col=0)], axis=0)
+    stock_year_mean_data.index = [i for i in range(len(stock_year_mean_data))]
+    stock_year_mean_data.to_excel(path + mean_all_file_name)
+
+
+def save_mean_year_file_and_png(year: int, stock_year_mean_data):
+    calculate_year_data = stock_year_mean_data[stock_year_mean_data['year'] == year]
+    calculate_year_data = calculate_year_data.pivot_table(values=['Profits'], index=['year', 'cycle'])
+    calculate_year_data: pd.DataFrame = calculate_year_data.sort_values(['Profits'], inplace=False)
+    calculate_year_data.plot(kind='bar', figsize=(24, 24))
+    plt.savefig(path + "mean_calculate_" + str(year) + ".png")
+    plt.close()
+    calculate_year_data.to_excel(path + mean_year_file_name + str(year) + ".xlsx")
+
+
+def save_mean_years_data():
+    stock_year_mean_data = pd.read_excel(path + mean_all_file_name, index_col=0)
+    # # 找出均线累计收益率
+    calculate_data = stock_year_mean_data.pivot_table(values=['Profits'], index=['year', 'cycle'])
+    calculate_data = calculate_data.sort_values(['Profits'], inplace=False)
+    calculate_data.plot(kind='bar', figsize=(24, 24))
+    # 综合数据
+    plt.savefig(path + "mean_calculate_all.png")
+    plt.close()
+    for year in years:
+        save_mean_year_file_and_png(year, stock_year_mean_data)
+
+
+def save_head5_tail5():
+    files = os.listdir(path)
+    mean_years_all_data = pd.DataFrame()
+    for file in files:
+        if file.startswith(mean_year_file_name):
+            df = pd.read_excel(path + file)
+            year = str(int(df['year'][0]))
+            df['year'] = year
+            df.sort_values(['Profits'], ascending=True)
+            df_head = df.head(5)
+            df_tail = df.tail(5)
+            mean_years_all_data = pd.concat([mean_years_all_data, df_head], axis=0)
+            mean_years_all_data = pd.concat([mean_years_all_data, df_tail], axis=0)
+    # mean_years_all_data.sort_values(['Profits'], ascending=True)
+    mean_years_all_data.to_excel(path + "沪深300均线策略取最高，最低5条数据" + ".xlsx")
+    mean_years_all_data = mean_years_all_data.set_index(['year', 'cycle'], drop=True)
+    mean_years_all_data_plot = mean_years_all_data.plot(kind='bar', figsize=(24, 24))
+    plt.savefig(path + "沪深300均线策略取最高，最低5条数据" + ".png")
+    plt.close()
+
+def found_eft():
+
+    pass
+
 if __name__ == '__main__':
     # 创建新线程
     # core = multiprocessing.cpu_count() * 2
@@ -210,7 +275,11 @@ if __name__ == '__main__':
     #         core -= 1
     #         # 开启线程
     #         thread.start()
-    # hu_shen_300((0, 301))
-    # 数据统计
 
-    pd.DataFrame()
+    # 代码生产沪深300均线统计
+    # hu_shen_300((0, 301))
+    # if not os.path.exists(path + mean_all_file_name):
+    #     save_mean_all_data()
+    # save_mean_years_data()
+    # save_head5_tail5()
+    pass

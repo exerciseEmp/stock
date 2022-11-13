@@ -5,6 +5,7 @@ because single thread and sql
 """
 import math
 import configparser
+import traceback
 
 import pandas
 import timestamp as timestamp
@@ -175,6 +176,31 @@ def update_and_insert_data():
     pass
 
 
+def save_base_found(code_str: str):
+    connection = mysql_connection_pool("stock_found").connection()
+    cursor = connection.cursor()
+    cursor.execute("select * from base_found where code = %s ", code_str)
+    base_found_data = cursor.fetchone()
+    if base_found_data is not None:
+        base_found_data = {"code": base_found_data[0], "display_name": base_found_data[1],
+                           "end_date": base_found_data[2],
+                           "name": base_found_data[3], "start_date": base_found_data[4], "type": base_found_data[5]}
+        return base_found_data
+    base_found_data = get_security_info(code_str)
+    cursor.execute(
+        "INSERT INTO `base_found` (`code`,`display_name`,`end_date`,`name`,`start_date`,`type`) VALUES (%s,%s,%s,%s,%s,%s)",
+        (base_found_data.code, base_found_data.display_name, base_found_data.end_date, base_found_data.name,
+         base_found_data.start_date, base_found_data.type))
+    connection.commit()
+    cursor.close()
+    connection.close()
+    base_found_data = {"code": base_found_data.code, "display_name": base_found_data.display_name,
+                       "end_date": base_found_data.end_date,
+                       "name": base_found_data.name, "start_date": base_found_data.start_date,
+                       "type": base_found_data.type}
+    return base_found_data
+
+
 def __main__():
     i = 0
     while i < 13:
@@ -184,12 +210,62 @@ def __main__():
             # 必须登录
             auth(cf.get("config%s" % i, "username%s" % i), cf.get("config%s" % i, "password%s" % i))
             print("login success")
+
             # 更新股票基础数据
-            update_and_insert_data()
+            # update_and_insert_data()
             # 保存K线数据
-            save_stock_k_all()
+            # save_stock_k_all()
+            # 基金数据
+            found_name = '159901.XSHE'
+            base_found_data = save_base_found(found_name)
+            found_data_k_data = get_price(found_name, start_date=base_found_data['start_date'],
+                                          end_date=base_found_data['end_date'],
+                                          frequency='daily',
+                                          fields=None,
+                                          skip_paused=False, fq='pre')
+            """ open 时间段开始时价格
+                close 时间段结束时价格
+                low 最低价
+                high 最高价
+                volume 成交的基金数量
+                money 成交的金额
+                factor 前复权因子, 我们提供的价格都是前复权后的, 但是利用这个值可以算出原始价格, 方法是价格除以factor, 比如: close/factor
+                high_limit 涨停价
+                low_limit 跌停价
+                avg 这段时间的平均价, 等于money/volume
+                pre_close 前一个单位时间结束时的价格, 按天则是前一天的收盘价, 按分钟这是前一分钟的结束价格
+                paused 布尔值, 这只基金是否停牌, 停牌时open/close/low/high/pre_close依然有值,都等于停牌前的收盘价, volume=money=0"""
+            create_table_sql = """
+                            Create Table If Not Exists `found_k_day_%s` (
+                              `index` datetime NOT NULL,
+                              `open` double NOT NULL,
+                              `close` double DEFAULT NULL,
+                              `high` double DEFAULT NULL,
+                              `low` double DEFAULT NULL,
+                              `volume` double DEFAULT NULL,
+                              `money` double DEFAULT NULL,
+                              PRIMARY KEY (`index`),
+                              KEY `ix_stock_k_day_index` (`index`)
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+                            """ % (found_name)
+            connection = mysql_connection_pool("stock_found").connection()
+            cursor = connection.cursor()
+            cursor.execute(create_table_sql)
+            i = 0
+            for index in found_data_k_data.index:
+                found_data_k_row_data = found_data_k_data.loc[index]
+                params = tuple(found_data_k_row_data)
+                insert_sql_k = "INSERT INTO `found_k_day_" + found_name + "`(`index`,`open`,`close`,`high`,`low`,`volume`,`money`) VALUES('%s',  '%s' , '%s' , '%s' , '%s' ,'%s' ,'%s')" \
+                               % (str(index), params[0], params[1], params[2], params[3], params[4], params[5])
+                cursor.execute(insert_sql_k)
+                i += 1
+                if i % 50 == 0:
+                    connection.commit()
+            connection.commit()
+            connection.close()
             return
         except Exception:
+            traceback.print_exc()
             pass
         finally:
             i += 1
