@@ -18,7 +18,6 @@ SET FOREIGN_KEY_CHECKS=0;
 -- ----------------------------
 -- Table structure for stock_basic
 -- ----------------------------
-DROP TABLE IF EXISTS `stock_basic`;
 CREATE TABLE `stock_basic` (
   `code_str` varchar(255) COLLATE utf8_unicode_ci NOT NULL COMMENT '股票代码000001.XSHE 688799.XSHG',
   `display_name` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL COMMENT '中文名称',

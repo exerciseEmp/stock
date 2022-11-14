@@ -216,7 +216,7 @@ def __main__():
             # 保存K线数据
             # save_stock_k_all()
             # 基金数据
-            found_name = '159901.XSHE'
+            found_name = '510300.XSHG'
             base_found_data = save_base_found(found_name)
             found_data_k_data = get_price(found_name, start_date=base_found_data['start_date'],
                                           end_date=base_found_data['end_date'],

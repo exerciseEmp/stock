@@ -18,7 +18,6 @@ SET FOREIGN_KEY_CHECKS=0;
 -- ----------------------------
 -- Table structure for base_found
 -- ----------------------------
-DROP TABLE IF EXISTS `base_found`;
 CREATE TABLE `base_found` (
   `code` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
   `display_name` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,

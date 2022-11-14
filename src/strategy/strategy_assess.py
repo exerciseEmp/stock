@@ -77,8 +77,8 @@ def calculate_prof_pct(data):
     # 筛选信号不为0的，并且计算涨跌幅
     data['profit_pct'] = data.loc[data['signal'] != 0, 'close'].pct_change()
     data = data[data['signal'] == -1]  # 筛选平仓后的数据：单次收益
-    if data['profit_pct'] < 0:
-        print(data['profit_pct'])
+    # if data['profit_pct'].sum() < 0:
+    #     print(data['profit_pct'])
     return data
 
 

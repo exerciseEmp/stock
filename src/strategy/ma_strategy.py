@@ -7,8 +7,7 @@
 import datetime
 import multiprocessing
 import os
-
-import dbutils.pooled_db
+from utils.DBUtils import *
 from sqlalchemy import create_engine
 
 import strategy.strategy_assess as strat
@@ -23,7 +22,14 @@ import threading
 path: str = "../../img/"
 mean_all_file_name: str = "均线策略所有数据_data.xlsx"
 mean_year_file_name: str = "calculate_"
-years = [3, 5, 7, 10, 15]
+time_tuple = ([5, 10], [5, 20], [5, 30], [5, 60], [5, 120], [5, 250],
+              [10, 20], [10, 30], [10, 60], [10, 120], [10, 250],
+              [20, 30], [20, 60], [20, 120], [20, 250],
+              [30, 60], [30, 120], [30, 250],
+              [60, 120], [60, 250],
+              [120, 250])
+years_times = [3, 5, 7, 10, 15]
+time_line_style = {5: "-", 10: "--", 20: "-.", 30: ":", 60: "dashed", 120: "dotted"}
 
 
 def ma_strategy(data, short_window=5, long_window=20):
@@ -34,42 +40,37 @@ def ma_strategy(data, short_window=5, long_window=20):
     :param long_window: 长期n日移动平均线，默认20
     :return:
     """
-    try:
-        # print("==========当前周期参数对：", short_window, long_window)
+    # print("==========当前周期参数对：", short_window, long_window)
 
-        data: pd.DataFrame = pd.DataFrame(data)
-        # 计算技术指标：ma短期、ma长期
-        data['short_ma'] = data['close'].rolling(window=short_window).mean()
-        data['long_ma'] = data['close'].rolling(window=long_window).mean()
+    data: pd.DataFrame = pd.DataFrame(data)
 
-        # 生成信号：金叉买入、死叉卖出
-        data['buy_signal'] = np.where(data['short_ma'] > data['long_ma'], 1, 0)
-        data['sell_signal'] = np.where(data['short_ma'] < data['long_ma'], -1, 0)
-        # print(data[['close', 'short_ma', 'long_ma', 'buy_signal', 'sell_signal']])
+    # 计算技术指标：ma短期、ma长期
+    data['short_ma'] = data['close'].rolling(window=short_window).mean()
+    data['long_ma'] = data['close'].rolling(window=long_window).mean()
 
-        # 过滤信号：st.compose_signal
-        data = strat.compose_signal(data)
-        # print(data[['close', 'short_ma', 'long_ma', 'signal']])
+    # 生成信号：金叉买入、死叉卖出
+    data['buy_signal'] = np.where(data['short_ma'] > data['long_ma'], 1, 0)
+    data['sell_signal'] = np.where(data['short_ma'] < data['long_ma'], -1, 0)
+    # print(data[['close', 'short_ma', 'long_ma', 'buy_signal', 'sell_signal']])
 
-        # 计算单次收益
-        data = strat.calculate_prof_pct(data)
-        # print(data.describe())
+    # 过滤信号：st.compose_signal
+    data = strat.compose_signal(data)
+    # print(data[['close', 'short_ma', 'long_ma', 'signal']])
 
-        # 计算累计收益
-        data = strat.calculate_cum_prof(data)
+    # 计算单次收益
+    data = strat.calculate_prof_pct(data)
+    # print(data.describe())
 
-        # 删除多余的columns
-        data.drop(labels=['buy_signal', 'sell_signal'], axis=1)
+    # 计算累计收益
+    data = strat.calculate_cum_prof(data)
 
-        # 数据预览
-        # print(data[['close', 'short_ma', 'long_ma', 'signal', 'cum_profit']])
-        # print(data.iloc[-1]["cum_profit"])
-    except Exception:
-        pass
+    # 删除多余的columns
+    data.drop(labels=['buy_signal', 'sell_signal'], axis=1)
+
+    # 数据预览
+    # print(data[['close', 'short_ma', 'long_ma', 'signal', 'cum_profit']])
+    # print(data.iloc[-1]["cum_profit"])
     return data
-
-
-exitFlag = 0
 
 
 class ma_strategy_thread(threading.Thread):  # 继承父类threading.Thread
@@ -137,14 +138,6 @@ def hu_shen_300(stock_range: ()):
               '688169.XSHG', '688363.XSHG', '688396.XSHG', '688561.XSHG', '688599.XSHG', '688981.XSHG']
     stocks = stocks[stock_range[0]: stock_range[1]]
     print(stocks)
-    time_tuple = ([5, 10], [5, 20], [5, 30], [5, 60], [5, 120], [5, 250],
-                  [10, 20], [10, 30], [10, 60], [10, 120], [10, 250],
-                  [20, 30], [20, 60], [20, 120], [20, 250],
-                  [30, 60], [30, 120], [30, 250],
-                  [60, 120], [60, 250],
-                  [120, 250])
-    time_line_style = {5: "-", 10: "--", 20: "-.", 30: ":", 60: "dashed", 120: "dotted"}
-    years_times = [3, 5, 7, 10, 15]
     end_date: datetime = datetime.datetime(2022, 11, 9).date()
     # 存结果
     i = 1
@@ -230,7 +223,7 @@ def save_mean_years_data():
     # 综合数据
     plt.savefig(path + "mean_calculate_all.png")
     plt.close()
-    for year in years:
+    for year in years_times:
         save_mean_year_file_and_png(year, stock_year_mean_data)
 
 
@@ -254,11 +247,61 @@ def save_head5_tail5():
     plt.savefig(path + "沪深300均线策略取最高，最低5条数据" + ".png")
     plt.close()
 
-def found_eft():
 
+def found_eft():
     pass
 
+
+def found_mean_strategy():
+    """
+        均线策略不太适合found个人认为原因如下
+            1 found是多个stock组成波动不大 无法灵活的配置
+            2 均线策略更多的是捕捉情绪的东西 基本面分析 价值投资可能更适合
+    :return:
+    """
+    global end_date, start_date
+    # 基金双均线策略计算
+    end_date = datetime.datetime.now()
+    found_name = "510300.xshg"
+    result_data_frame = pd.DataFrame(columns=("code_str", "year", "cycle", "num", "Profits"))
+    for year in years_times:
+        start_date = (end_date + relativedelta(years=-year))
+        found_data = data_utils.get_single_price(found_name, "daily", start_date.date(), end_date.date(), 'stock_found')
+        if found_data.iloc[0]['index'] > start_date.date():
+            print("数据日期未找到了 code: %s year %s", found_name, year)
+        cum_profits = pd.DataFrame()
+        result_row = None
+        for item in time_tuple:
+            found_data = ma_strategy(found_data, item[0], item[1])  # 调用双均线策略
+            cum_profits[found_name + str(item)] = found_data['cum_profit'].reset_index(drop=True)  # 存储累计收益率
+            # 折线图
+            # df['cum_profit'].plot(label=code + str(item), ls=time_line_style[item[0]])
+            cum_profits[found_name + str(item)].plot(label=found_name + str(item), ls=time_line_style[item[0]],
+                                                     figsize=(12, 12))
+            # 筛选有信号点
+            found_data = found_data[found_data['signal'] != 0]
+            # 预览数据
+            # print("开仓次数：", int(len(found_data)))
+            # print(df[['close', 'signal', 'pro   、fit_pct', 'cum_profit']])
+            result_row = {"code_str": found_name, "year": year, "cycle": item, "num": int(len(found_data)),
+                          "Profits": cum_profits[found_name + str(item)].iloc[int(len(found_data)) - 1]}
+            result_data_frame = result_data_frame.append(result_row, ignore_index=True)
+        plt.legend()
+        plt.plot()
+        plt.title('Comparison of Ma Strategy Profits' + found_name + "-" + str(year) + "year")
+        # plt.show()
+        plt.savefig(
+            "../../img/found_" + found_name + "_" + str(year) + "year_" + str(start_date.date()) + "__" + str(
+                end_date.date()) + ".png", transparent=True)
+        plt.close()
+    writer = pd.ExcelWriter("../../img/found_" + found_name + ".xlsx")
+    result_data_frame.to_excel(writer)
+    writer.save()
+    writer.close()
+
+
 if __name__ == '__main__':
+
     # 创建新线程
     # core = multiprocessing.cpu_count() * 2
     # num = 300
@@ -282,4 +325,6 @@ if __name__ == '__main__':
     #     save_mean_all_data()
     # save_mean_years_data()
     # save_head5_tail5()
+
+    # found_mean_strategy()
     pass
