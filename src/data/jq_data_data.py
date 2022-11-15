@@ -3,11 +3,13 @@
 Runs very slowly
 because single thread and sql
 """
+import datetime
 import math
 import configparser
 import traceback
 
-import pandas
+import pandas as pd
+import numpy as np
 import timestamp as timestamp
 from jqdatasdk import *
 
@@ -183,8 +185,9 @@ def save_base_found(code_str: str):
     base_found_data = cursor.fetchone()
     if base_found_data is not None:
         base_found_data = {"code": base_found_data[0], "display_name": base_found_data[1],
-                           "end_date": base_found_data[2],
-                           "name": base_found_data[3], "start_date": base_found_data[4], "type": base_found_data[5]}
+                           "end_date": base_found_data[2].date(), "name": base_found_data[3],
+                           "start_date": base_found_data[4].date(),
+                           "type": base_found_data[5]}
         return base_found_data
     base_found_data = get_security_info(code_str)
     cursor.execute(
@@ -216,14 +219,21 @@ def __main__():
             # 保存K线数据
             # save_stock_k_all()
             # 基金数据
-            found_name = '510300.XSHG'
-            base_found_data = save_base_found(found_name)
-            found_data_k_data = get_price(found_name, start_date=base_found_data['start_date'],
-                                          end_date=base_found_data['end_date'],
-                                          frequency='daily',
-                                          fields=None,
-                                          skip_paused=False, fq='pre')
-            """ open 时间段开始时价格
+            found_data = get_all_securities(types=['index'], date=None)
+            for index in found_data.index:
+                save_found(index)
+            return
+        except Exception:
+            traceback.print_exc()
+            pass
+        finally:
+            i += 1
+            pass
+
+
+def save_found(found_name: str):
+    base_found_data = save_base_found(found_name)
+    """ open 时间段开始时价格
                 close 时间段结束时价格
                 low 最低价
                 high 最高价
@@ -235,7 +245,7 @@ def __main__():
                 avg 这段时间的平均价, 等于money/volume
                 pre_close 前一个单位时间结束时的价格, 按天则是前一天的收盘价, 按分钟这是前一分钟的结束价格
                 paused 布尔值, 这只基金是否停牌, 停牌时open/close/low/high/pre_close依然有值,都等于停牌前的收盘价, volume=money=0"""
-            create_table_sql = """
+    create_table_sql = """
                             Create Table If Not Exists `found_k_day_%s` (
                               `index` datetime NOT NULL,
                               `open` double NOT NULL,
@@ -248,28 +258,42 @@ def __main__():
                               KEY `ix_stock_k_day_index` (`index`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
                             """ % (found_name)
-            connection = mysql_connection_pool("stock_found").connection()
-            cursor = connection.cursor()
-            cursor.execute(create_table_sql)
-            i = 0
-            for index in found_data_k_data.index:
-                found_data_k_row_data = found_data_k_data.loc[index]
-                params = tuple(found_data_k_row_data)
-                insert_sql_k = "INSERT INTO `found_k_day_" + found_name + "`(`index`,`open`,`close`,`high`,`low`,`volume`,`money`) VALUES('%s',  '%s' , '%s' , '%s' , '%s' ,'%s' ,'%s')" \
-                               % (str(index), params[0], params[1], params[2], params[3], params[4], params[5])
-                cursor.execute(insert_sql_k)
-                i += 1
-                if i % 50 == 0:
-                    connection.commit()
-            connection.commit()
-            connection.close()
-            return
+    connection = mysql_connection_pool("stock_found").connection()
+    cursor = connection.cursor()
+    cursor.execute(create_table_sql)
+    cursor.execute("SELECT MAX(`index`) FROM `found_k_day_" + found_name + "`")
+    last_time = cursor.fetchone()[0]
+    if last_time is None:
+        start_date = base_found_data['start_date']
+    else:
+        start_date = last_time.date()
+    if datetime.datetime.now().date() <= start_date:
+        return
+    i = 0
+    found_data_k_data = get_price(found_name, start_date=start_date,
+                                  end_date=base_found_data['end_date'],
+                                  frequency='daily',
+                                  fields=None,
+                                  skip_paused=False, fq='pre')
+    for index in found_data_k_data.index:
+        try:
+            found_data_k_row_data = found_data_k_data.loc[index]
+            if np.any(pd.isna(found_data_k_row_data)):
+                continue
+            params = tuple(found_data_k_row_data)
+            insert_sql_k = "INSERT INTO `found_k_day_" + found_name + "`(`index`,`open`,`close`,`high`,`low`,`volume`,`money`) VALUES('%s',  '%s' , '%s' , '%s' , '%s' ,'%s' ,'%s')" \
+                           % (str(index), params[0], params[1], params[2], params[3], params[4], params[5])
+            cursor.execute(insert_sql_k)
+            i += 1
+            if i % 50 == 0:
+                connection.commit()
         except Exception:
-            traceback.print_exc()
             pass
         finally:
-            i += 1
-            pass
+            connection.commit()
+    connection.commit()
+    connection.close()
+    return i
 
 
 if __name__ == '__main__':
