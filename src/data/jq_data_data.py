@@ -101,7 +101,7 @@ def save_stock_k(code_str: str):
         if datetime.datetime.now() > end_data:
             print("股票st code:%s" % code_str)
             return
-        stock_k: pandas.DataFrame = get_price(code_str, start_date=start_date, end_date=end_data,
+        stock_k: pd.DataFrame = get_price(code_str, start_date=start_date, end_date=end_data,
                                               frequency='daily',
                                               fields=None, skip_paused=False,
                                               fq='pre', count=None, panel=True, fill_paused=True)
@@ -133,7 +133,7 @@ def update_and_insert_data():
     """
     每日查看是否有数据更新
     """
-    all_data: pandas.DataFrame = get_all_securities(types=['stock'], date=None)
+    all_data: pd.DataFrame = get_all_securities(types=['stock'], date=None)
     connection = PooledDB.connection()
     cursor = connection.cursor()
     update_sql = "UPDATE stock_basic SET `display_name` = %s, `name` = %s ,`start_date` = %s ,`end_date`= %s,`type` = %s WHERE `code_str` =  %s "
@@ -219,9 +219,10 @@ def __main__():
             # 保存K线数据
             # save_stock_k_all()
             # 基金数据
-            found_data = get_all_securities(types=['index'], date=None)
-            for index in found_data.index:
-                save_found(index)
+            # found_data = get_all_securities(types=['index'], date=None)
+            # for index in found_data.index:
+            #     save_found(index)
+            get_pe_percentile()
             return
         except Exception:
             traceback.print_exc()
@@ -294,6 +295,24 @@ def save_found(found_name: str):
     connection.commit()
     connection.close()
     return i
+
+
+def get_pe_percentile():
+    df = get_valuation("600668.XSHG", start_date="2022-01-15 00:00:00", end_date="2022-11-15 00:00:00")
+    cur_pe = df.iloc[0, 2]
+    print(cur_pe)
+    df = df.loc[:, 'pe_ratio']
+    pe_sorted = sorted(df.values)
+    positon = pe_sorted.index(cur_pe)
+    percentile = float(positon) / float(len(pe_sorted))
+    return percentile
+
+
+# code = '000333.XSHE'
+# date = '2022-05-13'
+# daycount = 1095
+
+## test
 
 
 if __name__ == '__main__':
