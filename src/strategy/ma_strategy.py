@@ -366,10 +366,13 @@ def hushen300_lower_high():
         for stock in stocks_300:
             start_date = (end_date + relativedelta(years=-year))
             data = data_utils.get_single_price(stock, "daily", start_date.date(), end_date.date(), "stock")
-            max_price = data["high"].sort_values(ascending=False).iloc[0]
-            min_price = data["low"].sort_values(ascending=True).iloc[0]
-            data = {"code": stock, "min_price": min_price, "max_price": max_price,
-                    "cum_profit": max_price / min_price, "year": year}
+            max_price_data = data.sort_values(["high"], ascending=False).iloc[0]
+            min_price_data = data.sort_values(["low"], ascending=True).iloc[0]
+            max_price = max_price_data["high"]
+            min_price = min_price_data["low"]
+            data = {"code": stock, "min_price": min_price, "max_price": max_price, "cum_profit": max_price / min_price,
+                    "year": year, "max_time": max_price_data["index"],
+                    "min_time": min_price_data["index"]}
             lower_high_data = pd.DataFrame(data, index=[year])
             calculate_data = pd.concat([calculate_data, lower_high_data], axis=0)
     writer = pd.ExcelWriter("../../found/" + "计算N年最高最低点得收益率沪深300" + ".xlsx")
@@ -415,8 +418,8 @@ if __name__ == '__main__':
 
     # found_mean_strategy()
     # check300Time()
-    can_buy_hushen_300()
-    # hushen300_lower_high()
+    # can_buy_hushen_300()
+    hushen300_lower_high()
     # mean()
     # save_mean_all_high_data()
     # marge_hushen300()

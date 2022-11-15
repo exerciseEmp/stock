@@ -32,6 +32,8 @@ def get_single_price(code_str: str, k: str, starDate, endDate, db: str):
         columnDes = cursor.description  # 获取连接对象的描述信息
         columnNames = [columnDes[i][0] for i in range(len(columnDes))]
         results = pd.DataFrame([list(i) for i in query_data], columns=columnNames)
+        if results.iloc[0]["index"] != starDate | results.iloc[len(results)]["index"] != endDate:
+            print("数据不全。。。。。。。。code_str:" + code_str)
     finally:
         cursor.close()
         conection.close()
