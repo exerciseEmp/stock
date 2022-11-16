@@ -1,6 +1,8 @@
 """
 从数据库获取数据并整理
 """
+import datetime
+import time
 from utils.DBUtils import *
 import pandas as pd
 
@@ -32,7 +34,13 @@ def get_single_price(code_str: str, k: str, starDate, endDate, db: str):
         columnDes = cursor.description  # 获取连接对象的描述信息
         columnNames = [columnDes[i][0] for i in range(len(columnDes))]
         results = pd.DataFrame([list(i) for i in query_data], columns=columnNames)
-        if results.iloc[0]["index"] != starDate | results.iloc[len(results)]["index"] != endDate:
+        time_long = 20 * 24 * 60 * 60 * 1000
+
+        if results.iloc[0]["index"].value / 1000000000 - time.mktime(datetime.datetime.combine(starDate.today(),
+                                                                                         datetime.datetime.min.time()).timetuple()) > time_long or \
+                results.iloc[len(results) - 1]["index"].value / 1000000000 - time.mktime(
+            datetime.datetime.combine(endDate.today(),
+                                      datetime.datetime.min.time()).timetuple()) > time_long:
             print("数据不全。。。。。。。。code_str:" + code_str)
     finally:
         cursor.close()
