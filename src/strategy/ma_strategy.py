@@ -7,6 +7,8 @@
 import datetime
 import multiprocessing
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.DBUtils import *
 from sqlalchemy import create_engine
@@ -359,23 +361,58 @@ def hushen300_lower_high():
     直接算出year日期内的最高点和最低点得到综合收益率
     :return:
     """
+    mutex = threading.Lock()
+    pool = ThreadPoolExecutor(max_workers=25)
     calculate_data = pd.DataFrame()
+    results = list()
+    end_date = datetime.datetime.now()
     for year in years_times:
-        end_date = datetime.datetime.now()
-        datetime.datetime.now()
+        start_date = (end_date + relativedelta(years=-year))
         for stock in stocks_300:
-            start_date = (end_date + relativedelta(years=-year))
             data = data_utils.get_single_price(stock, "daily", start_date.date(), end_date.date(), "stock")
-            max_price = data["high"].sort_values(ascending=False).iloc[0]
-            min_price = data["low"].sort_values(ascending=True).iloc[0]
-            data = {"code": stock, "min_price": min_price, "max_price": max_price,
-                    "cum_profit": max_price / min_price, "year": year}
-            lower_high_data = pd.DataFrame(data, index=[year])
-            calculate_data = pd.concat([calculate_data, lower_high_data], axis=0)
+            future = pool.submit(hushen300_high_low_calculate, data, stock, year)
+            results.append(future)
+    flag = True
+    while flag:
+        for result in results:
+            time.sleep(1)
+            mutex.acquire()
+            if result.done():
+                lower_high_data = result.result()
+                calculate_data = pd.concat([calculate_data, lower_high_data], axis=0)
+                results.remove(result)
+            mutex.release()
+        if results:
+            flag = False
     writer = pd.ExcelWriter("../../found/" + "计算N年最高最低点得收益率沪深300" + ".xlsx")
     calculate_data.to_excel(writer, index=False)
     writer.save()
     writer.close()
+
+
+def hushen300_high_low_calculate(data, stock, year) -> pd.DataFrame:
+    result = [0, 0, 0, 0, 0]
+    for index_low in data.index:
+        low_series = data.loc[index_low]
+        low = low_series["low"]
+        high_data = data[data.index > index_low]
+        for index_high in high_data.index:
+            high_series = high_data.loc[index_high]
+            high = high_series["high"]
+            diff = high - low
+            if diff > result[0]:
+                result[0] = diff
+                result[1] = high_series["index"]
+                result[2] = low_series["index"]
+                result[3] = high
+                result[4] = low
+    min_price = result[4]
+    max_price = result[3]
+    data = {"code": stock, "min_price": min_price, "max_price": max_price, "cum_profit": max_price / min_price,
+            "year": year, "max_time": result[1],
+            "min_time": result[2]}
+    lower_high_data = pd.DataFrame(data, index=[year])
+    return lower_high_data
 
 
 def marge_hushen300():
@@ -415,10 +452,15 @@ if __name__ == '__main__':
 
     # found_mean_strategy()
     # check300Time()
-    can_buy_hushen_300()
-    # hushen300_lower_high()
+    # can_buy_hushen_300()
+    hushen300_lower_high()
     # mean()
     # save_mean_all_high_data()
     # marge_hushen300()
-
+    # start_time = datetime.datetime.now()
+    # for i in range(10000):
+    #     for j in range(10000):
+    #         pass
+    # end_time = datetime.datetime.now()
+    # print(end_time - start_time)
 pass
