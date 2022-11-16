@@ -40,7 +40,7 @@ class stock_info:
 
 
 def save_stock_k_all():
-    connection = PooledDB.connection()
+    connection = mysql_connection_pool("stock").connection()
     cursor = connection.cursor()
     cursor.execute("SELECT `code_str` FROM stock_basic;")
     cord_strs = cursor.fetchall()
@@ -60,7 +60,7 @@ def save_stock_k(code_str: str):
     :param code_str: 股票代码 '000002.XSHE'
     :return:
     """
-    connection = PooledDB.connection()
+    connection = mysql_connection_pool("stock").connection()
     cursor = connection.cursor()
     insert_i = 0
     try:
@@ -102,9 +102,9 @@ def save_stock_k(code_str: str):
             print("股票st code:%s" % code_str)
             return
         stock_k: pd.DataFrame = get_price(code_str, start_date=start_date, end_date=end_data,
-                                              frequency='daily',
-                                              fields=None, skip_paused=False,
-                                              fq='pre', count=None, panel=True, fill_paused=True)
+                                          frequency='daily',
+                                          fields=None, skip_paused=False,
+                                          fq='pre', count=None, panel=True, fill_paused=True)
         # engine = create_engine(f'mysql+pymysql://root:root@127.0.0.1:3306/stock')
         # stock_k.to_sql(name="stock_k_day", con=engine)
         for index in tuple(stock_k.index):
@@ -134,7 +134,7 @@ def update_and_insert_data():
     每日查看是否有数据更新
     """
     all_data: pd.DataFrame = get_all_securities(types=['stock'], date=None)
-    connection = PooledDB.connection()
+    connection = mysql_connection_pool("stock").connection()
     cursor = connection.cursor()
     update_sql = "UPDATE stock_basic SET `display_name` = %s, `name` = %s ,`start_date` = %s ,`end_date`= %s,`type` = %s WHERE `code_str` =  %s "
     insert_sql = "INSERT INTO stock_basic(`code_str`,`display_name`,`name`,`start_date`,`end_date`,`type`) VALUES(%s, %s ,  %s , %s , %s ,%s) "
@@ -222,7 +222,7 @@ def __main__():
             # found_data = get_all_securities(types=['index'], date=None)
             # for index in found_data.index:
             #     save_found(index)
-            get_pe_percentile()
+            # get_pe_percentile()
             return
         except Exception:
             traceback.print_exc()
