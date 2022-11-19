@@ -418,9 +418,9 @@ def hushen300_high_low_calculate(data, stock, year) -> pd.DataFrame:
 def marge_hushen300():
     high_mean_data = pd.read_excel("../../img/沪深300最高策略.xlsx")
     high_mean_data["code"] = high_mean_data["code_str"]
-    high_data = pd.read_excel("../../found/计算N年最高最低点得收益率沪深300.xlsx")
+    high_data = pd.read_csv("../../found/hushen300_low_high.csv")
     calculate_date = pd.merge(high_data, high_mean_data, how="outer", on=["code", "year"])
-    calculate_date["对比收益(cum_profit-Profits)"] = calculate_date["cum_profit"] - calculate_date["Profits"]
+    calculate_date["对比收益(div-Profits)"] = calculate_date["div"] - calculate_date["Profits"]
     calculate_date.to_excel("../../found/对比最高最低策略和均线策略.xlsx")
     pass
 
@@ -453,7 +453,7 @@ if __name__ == '__main__':
     # found_mean_strategy()
     # check300Time()
     # can_buy_hushen_300()
-    hushen300_lower_high()
+    # hushen300_lower_high()
     # mean()
     # save_mean_all_high_data()
     # marge_hushen300()
@@ -463,4 +463,5 @@ if __name__ == '__main__':
     #         pass
     # end_time = datetime.datetime.now()
     # print(end_time - start_time)
-pass
+
+    pass

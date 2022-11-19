@@ -6,6 +6,7 @@ because single thread and sql
 import datetime
 import math
 import configparser
+import time
 import traceback
 
 import pandas as pd
@@ -204,9 +205,22 @@ def save_base_found(code_str: str):
     return base_found_data
 
 
+def save_valuation_all():
+    connection = mysql_connection_pool("stock").connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM stock_basic ")
+    try:
+        results = cursor.fetchall()
+        for result in results:
+            save_valuation(result[0])
+    finally:
+        cursor.close()
+        connection.close()
+
+
 def __main__():
-    i = 0
-    while i < 13:
+    i = 13
+    while i <= 13:
         cf = configparser.ConfigParser()
         cf.read("../../config/config.properties", encoding='UTF-8')
         try:
@@ -222,13 +236,15 @@ def __main__():
             # found_data = get_all_securities(types=['index'], date=None)
             # for index in found_data.index:
             #     save_found(index)
-            # get_pe_percentile()
+
+            # save_valuation("600668.XSHG")
+            save_valuation_all()
             return
         except Exception:
             traceback.print_exc()
             pass
         finally:
-            i += 1
+            i -= 1
             pass
 
 
@@ -297,15 +313,90 @@ def save_found(found_name: str):
     return i
 
 
-def get_pe_percentile():
-    df = get_valuation("600668.XSHG", start_date="2022-01-15 00:00:00", end_date="2022-11-15 00:00:00")
-    cur_pe = df.iloc[0, 2]
-    print(cur_pe)
-    df = df.loc[:, 'pe_ratio']
-    pe_sorted = sorted(df.values)
-    positon = pe_sorted.index(cur_pe)
-    percentile = float(positon) / float(len(pe_sorted))
-    return percentile
+def save_valuation(stock: str):
+    """
+                code	股票代码 带后缀.XSHE/.XSHG
+                day	日期 取数据的日期
+                capitalization	总股本(万股)
+                circulating_cap	流通股本(万股)
+                market_cap	总市值(亿元)
+                circulating_market_cap	流通市值(亿元)
+                turnover_ratio	换手率(%)
+                pe_ratio	市盈率(PE, TTM)
+                pe_ratio_lyr	市盈率(PE)
+                pb_ratio	市净率(PB)
+                ps_ratio	市销率(PS, TTM)
+                pcf_ratio	市现率(PCF, 现金净流量TTM)
+    :return:
+    """
+    connection = mysql_connection_pool("stock").connection()
+    cursor = connection.cursor()
+    creat_sql = """
+     Create Table If Not Exists `stock_k_valuetion_""" + stock + """` (
+                  `day` datetime NOT NULL COMMENT '日期 取数据的日期',
+                  `code` varchar(255) COLLATE utf8_unicode_ci DEFAULT '' COMMENT '股票代码 带后缀.XSHE/.XSHG',
+                  `capitalization` double DEFAULT NULL COMMENT '总股本(万股)',
+                  `circulating_cap` double DEFAULT NULL COMMENT '流通股本(万股)',
+                  `market_cap` double DEFAULT NULL COMMENT '总市值(亿元)',
+                  `circulating_market_cap` double DEFAULT NULL COMMENT '流通市值(亿元)',
+                  `turnover_ratio` double DEFAULT NULL COMMENT '换手率(%)',
+                  `pe_ratio` double DEFAULT NULL COMMENT '市盈率(PE, TTM)',
+                  `pe_ratio_lyr` double DEFAULT NULL COMMENT '市盈率(PE)',
+                  `pb_ratio` double DEFAULT NULL COMMENT '市净率(PB)',
+                  `ps_ratio` double DEFAULT NULL COMMENT '市销率(PS, TTM)',
+                  `pcf_ratio` double DEFAULT NULL COMMENT '市现率(PCF, 现金净流量TTM)',
+                  PRIMARY KEY (`day`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci"""
+    cursor.execute(creat_sql)
+    connection.commit()
+    cursor.execute("SELECT MAX(day) FROM `stock_k_valuetion_" + stock + "`")
+    last_time = cursor.fetchone()
+    start_time = datetime.datetime(1990, 1, 1)
+    end_date = datetime.datetime.now()
+    if last_time[0] is not None:
+        start_time = (last_time[0] + datetime.timedelta(days=+1))
+    if end_date.date() == start_time.date():
+        print(stock + "valuation 无信息更新")
+        return
+    df: pd.DataFrame = get_valuation(stock, start_date=start_time, end_date=end_date,
+                                     fields=['code', 'day', 'capitalization', 'circulating_cap', 'market_cap',
+                                             'circulating_market_cap',
+                                             'turnover_ratio', 'pe_ratio', 'pe_ratio_lyr', 'pb_ratio', 'ps_ratio',
+                                             'pcf_ratio'])
+    i = 0
+    df.replace("inf", np.nan)
+    df.replace("-inf", np.nan)
+    pre_len = len(df)
+    df = df.dropna(axis=0)
+    current_len = len(df)
+    if current_len - pre_len > 20:
+        print(stock + "valuation 数据不完整缺少:" + str(current_len - pre_len))
+    try:
+        for index in df.index:
+            data = df.loc[index]
+            insert_sql = "INSERT INTO `stock_k_valuetion_" + stock + "` " \
+                                                                     "(`day`,`code`,`capitalization`,`circulating_cap`,`market_cap`,`circulating_market_cap`,`turnover_ratio`,`pe_ratio`,`pe_ratio_lyr`,`pb_ratio`,`ps_ratio`,`pcf_ratio`)" \
+                                                                     " VALUES('%s',  '%s' , '%s' , '%s' , '%s' ,'%s' ,'%s','%s','%s','%s','%s','%s')" % (
+                             data["day"], data["code"], data["capitalization"], data["circulating_cap"],
+                             data["market_cap"],
+                             data["circulating_market_cap"], data["turnover_ratio"], data["pe_ratio"],
+                             data["pe_ratio_lyr"],
+                             data["pb_ratio"], data["ps_ratio"], data["pcf_ratio"])
+            cursor.execute(insert_sql)
+            i += 1
+            if i % 500 == 0:
+                connection.commit()
+    except Exception:
+        traceback.print_exc()
+        connection.commit()
+        cursor.close()
+        connection.close()
+        pass
+    connection.commit()
+    print(stock + " 估值数据完成 valuation更新:" + str(i) + "条")
+    cursor.close()
+    connection.close()
+    return None
 
 
 # code = '000333.XSHE'
